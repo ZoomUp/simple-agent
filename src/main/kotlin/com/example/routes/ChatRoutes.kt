@@ -35,9 +35,8 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             ResponseMessage(
                 role = "system",
                 content = listOf(
-                    MessageContent(
-                        text = "You are a helpful Kotlin backend agent. Decide when to call tools."
-                    )
+                    MessageContent(text = "Ты агент. Если вызываешь инструмент, возвращай его результат без изменений.")
+
                 )
             ),
             ResponseMessage(
