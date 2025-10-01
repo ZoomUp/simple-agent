@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>🔥 День 1 — Первый агент</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { --bd:#e5e7eb; --fg:#111827; --mut:#6b7280; --bg:#ffffff; --acc:#0b6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    .wrap { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .hint { color: var(--mut); margin: 0 0 16px; }
+    #log { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; min-height: 260px; max-height: 60vh; overflow-y: auto; background: #fff; }
+    .msg { display: flex; gap: 8px; margin: 8px 0; align-items: flex-start; }
+    .msg .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--bd); color: var(--mut); }
+    .msg .bubble { padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; white-space: pre-wrap; }
+    .me .bubble { border-color: #d1fae5; background: #ecfdf5; }
+    .bot .bubble { border-color: #e5e7eb; background: #f9fafb; }
+    form { display: flex; gap: 8px; margin-top: 12px; }
+    input[type=text] { flex: 1; padding: 12px; border: 1px solid var(--bd); border-radius: 10px; }
+    button { padding: 12px 16px; border: 0; background: var(--acc); color: #fff; border-radius: 10px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .spinner { width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: var(--acc); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; margin-left: 8px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🔥 День 1 — Первый агент</h1>
+    <p class="hint">Спроси, например: <em>Сколько времени?</em> — агент вызовет инструмент <code>get_time</code>.</p>
+
+    <div id="log" aria-live="polite"></div>
+
+    <form id="form" autocomplete="off">
+      <input id="msg" type="text" placeholder="Введите сообщение и нажмите Enter…" />
+      <button id="send" type="submit">Отправить</button>
+    </form>
+  </div>
+
+  <script>
+    const $log  = document.getElementById('log');
+    const $form = document.getElementById('form');
+    const $msg  = document.getElementById('msg');
+    const $send = document.getElementById('send');
+
+    function add(role, text) {
+      const row = document.createElement('div');
+      row.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
+
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.textContent = role === 'user' ? 'Вы' : 'Агент';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+
+      row.appendChild(tag);
+      row.appendChild(bubble);
+      $log.appendChild(row);
+      $log.scrollTop = $log.scrollHeight;
+    }
+
+    async function sendMessage(text) {
+      add('user', text);
+      $send.disabled = true;
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      $send.appendChild(spinner);
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
+        add('assistant', data?.reply || '(пусто)');
+      } catch (e) {
+        add('assistant', 'Ошибка: ' + (e?.message || e));
+      } finally {
+        $send.disabled = false;
+        spinner.remove();
+        $msg.focus();
+      }
+    }
+
+    $form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = $msg.value.trim();
+      if (!text) return;
+      $msg.value = '';
+      sendMessage(text);
+    });
+
+    // отправка по Enter
+    $msg.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        $form.requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>
