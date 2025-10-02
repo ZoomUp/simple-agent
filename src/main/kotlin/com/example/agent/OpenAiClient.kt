@@ -21,7 +21,6 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
-import java.time.Instant
 
 private const val RESPONSES_URL = "https://api.openai.com/v1/responses"
 
