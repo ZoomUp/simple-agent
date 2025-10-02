@@ -1,30 +1,34 @@
-# Kotlin Ktor Tool-Calling Agent
+# Kotlin Ktor Agent — День 2: Настройка AI (Structured Outputs)
 
-Этот проект реализует минимальный backend-агента на Kotlin и Ktor, который использует OpenAI Responses API и поддерживает вызов инструментов (tool calling).
+Простой чат (клиент → Ktor-бэкенд → OpenAI Responses API), настроенный так, чтобы модель **всегда** возвращала один и тот же структурированный JSON:
 
-## День 2 — Настройка AI (structured outputs)
+```json
+{
+  "answer": "string",
+  "topic": "string",
+  "confidence": 0.0,
+  "suggest": ["string", "..."]
+}
+```
 
-Интерфейс и сервер доработаны так, чтобы ответы модели всегда представляли собой JSON-объект с полями `answer` и `source`.
-
-- В системное сообщение добавлена жёсткая инструкция: «Отвечай строго объектом JSON с полями answer и source. Ничего вне JSON не добавляй».
-- При обращении к Responses API используется Structured Outputs (`text.format`) с блоком `{ type: "json_schema", name: "answer_with_source", schema: {...}, strict: true }` и `text.verbosity = "medium"`.
-- Бэкенд пытается распарсить JSON-ответ и логирует результат (`OK parsed` или `fallback`). Если модель вернула неожиданный текст, сервер всё равно отвечает объектом `{ answer: "…", source: "model" }`.
-- UI показывает поле `answer` как основной текст и подпись `Источник: …` под ним.
-- В логах хранится сырой ответ модели (усечённый при необходимости).
+* В `system`-подсказке зафиксировано требование отвечать **только** этим объектом.
+* При вызове Responses API используется `text.format` с `json_schema` (строгая схема).
+* Бэкенд парсит JSON и логирует статус: `OK parsed` или `fallback`.
+* UI показывает `answer`, `topic`, `confidence` и `suggest[]` (кнопками).
 
 ## Требования
-- Kotlin 1.9+
-- Gradle (Kotlin DSL)
-- OpenAI API key с правами на использование Responses API
+
+* Kotlin 1.9+
+* Gradle (Kotlin DSL)
+* OpenAI API key с правами на Responses API
 
 ## Переменные окружения
-Перед запуском экспортируйте ключ API:
 
 ```bash
 export OPENAI_API_KEY="ваш_api_ключ"
-# опционально, можно переопределить модель
-export OPENAI_MODEL="gpt-4.1-mini"
-# опционально, можно задать порт
+# опционально: модель
+export OPENAI_MODEL="gpt-4.1-nano"
+# опционально: порт
 export PORT=8080
 ```
 
@@ -34,22 +38,34 @@ export PORT=8080
 ./gradlew run
 ```
 
-Сервер запустится на `http://localhost:8080` (если не переопределён переменной `PORT`).
+Сервер поднимется на `http://localhost:8080`.
 
 ## Пример запроса
 
 ```bash
 curl -s -X POST http://localhost:8080/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"Сколько времени?"}'
+  -d '{"message":"Привет"}'
 ```
 
-Ожидается, что модель вызовет инструмент `get_time`, сервер выполнит его и вернёт время в ISO-формате.
+### Пример ожидаемого ответа
 
-Повторение текста:
-
-```bash
-curl -s -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Повтори: Привет, агент!"}'
+```json
+{
+  "answer": "Привет! Чем могу помочь?",
+  "topic": "general",
+  "confidence": 1.0,
+  "suggest": ["Расскажи о погоде", "Помоги с переводом", "Что нового в технологиях"]
+}
 ```
+
+> Если модель вернёт не-JSON, бэкенд сделает fallback и вернёт:
+>
+> ```json
+> {
+>   "answer": "<сырой текст>",
+>   "topic": "general",
+>   "confidence": 0.5,
+>   "suggest": []
+> }
+> ```
