@@ -1,8 +1,6 @@
 package com.example.routes
 
 import com.example.agent.ChatRequest
-import com.example.agent.ChatResponse
-import com.example.agent.ErrorResponse
 import com.example.agent.MessageContent
 import com.example.agent.OpenAiClient
 import com.example.agent.ResponseMessage
@@ -12,6 +10,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
+import com.example.agent.ErrorResponse
 import org.slf4j.LoggerFactory
 
 fun Route.chatRoutes(openAiClient: OpenAiClient) {
@@ -33,7 +32,17 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
                 role = "system",
                 content = listOf(
                     MessageContent(
-                        text = "Ты дружелюбный помощник. Отвечай пользователю на русском языке, если это уместно."
+                        text = """
+                            Ты дружелюбный помощник. Отвечай пользователю на русском языке, если это уместно.
+                            ВАЖНО: возвращай СТРОГО объект JSON со СТРОГО следующими полями и типами:
+                            {
+                              "answer": string,
+                              "topic": string,                           // например: time|weather|money|general|travel|tech
+                              "confidence": number,                      // 0..1
+                              "suggest": string[],                       // список подсказок для пользователя для будущих вопросов
+                            }
+                            Ничего вне JSON не выводи.
+                        """.trimIndent()
                     )
                 )
             ),
@@ -43,12 +52,12 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             )
         )
 
-        val reply = openAiClient.generateReply(messages).ifBlank {
-            logger.warn("Received blank reply from model")
-            "Извини, я не смог сформировать ответ."
-        }
+        val reply = openAiClient.generateReply(messages)
 
-        logger.info("Final reply: {}", reply)
-        call.respond(ChatResponse(reply = reply))
+        logger.info(
+            "Final answer: '{}' | topic={} | confidence={} | suggestCount={}",
+            reply.answer, reply.topic, reply.confidence, reply.suggest.size
+        )
+        call.respond(reply)
     }
 }

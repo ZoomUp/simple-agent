@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>🔥 День 1 — Первый агент</title>
+  <title>🔥 День 2 — Настройка AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root { --bd:#e5e7eb; --fg:#111827; --mut:#6b7280; --bg:#ffffff; --acc:#0b6; }
@@ -14,9 +14,27 @@
     #log { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; min-height: 260px; max-height: 60vh; overflow-y: auto; background: #fff; }
     .msg { display: flex; gap: 8px; margin: 8px 0; align-items: flex-start; }
     .msg .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--bd); color: var(--mut); }
-    .msg .bubble { padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; white-space: pre-wrap; }
+    .msg .bubble { padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; background: #fff; }
     .me .bubble { border-color: #d1fae5; background: #ecfdf5; }
-    .bot .bubble { border-color: #e5e7eb; background: #f9fafb; }
+    .bot .bubble { border-color: #e5e7eb; background: #fff; }
+    .bubble .answer { white-space: pre-wrap; margin-bottom: 6px; }
+    .bubble .meta { font-size: 13px; color: var(--mut); margin-top: 4px; }
+    .bubble .suggest { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .bubble .suggest button {
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--bd);
+      background: #fff;
+      color: var(--fg);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .bubble .suggest button:hover {
+      background: var(--acc);
+      color: #fff;
+      border-color: var(--acc);
+    }
     form { display: flex; gap: 8px; margin-top: 12px; }
     input[type=text] { flex: 1; padding: 12px; border: 1px solid var(--bd); border-radius: 10px; }
     button { padding: 12px 16px; border: 0; background: var(--acc); color: #fff; border-radius: 10px; cursor: pointer; }
@@ -26,82 +44,121 @@
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>🔥 День 1 — Первый агент</h1>
-    <p class="hint">Спроси, например: <em>Сколько времени?</em> — агент вызовет инструмент <code>get_time</code>.</p>
+<div class="wrap">
+  <h1>🔥 День 2 — Настройка AI</h1>
+  <p class="hint">
+    Ответы приходят в виде JSON с полями
+    <code>answer</code>, <code>topic</code>, <code>confidence</code>, <code>suggest[]</code>.
+  </p>
 
-    <div id="log" aria-live="polite"></div>
+  <div id="log" aria-live="polite"></div>
 
-    <form id="form" autocomplete="off">
-      <input id="msg" type="text" placeholder="Введите сообщение и нажмите Enter…" />
-      <button id="send" type="submit">Отправить</button>
-    </form>
-  </div>
+  <form id="form" autocomplete="off">
+    <input id="msg" type="text" placeholder="Введите сообщение и нажмите Enter…" />
+    <button id="send" type="submit">Отправить</button>
+  </form>
+</div>
 
-  <script>
-    const $log  = document.getElementById('log');
-    const $form = document.getElementById('form');
-    const $msg  = document.getElementById('msg');
-    const $send = document.getElementById('send');
+<script>
+  const $log  = document.getElementById('log');
+  const $form = document.getElementById('form');
+  const $msg  = document.getElementById('msg');
+  const $send = document.getElementById('send');
 
-    function add(role, text) {
-      const row = document.createElement('div');
-      row.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
+  function add(role, payload) {
+    const row = document.createElement('div');
+    row.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
 
-      const tag = document.createElement('div');
-      tag.className = 'tag';
-      tag.textContent = role === 'user' ? 'Вы' : 'Агент';
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = role === 'user' ? 'Вы' : 'Агент';
 
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = text;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
 
-      row.appendChild(tag);
-      row.appendChild(bubble);
-      $log.appendChild(row);
-      $log.scrollTop = $log.scrollHeight;
-    }
+    // ассистент — структурированный JSON
+    if (role === 'assistant' && payload && typeof payload === 'object') {
+      const answer = document.createElement('div');
+      answer.className = 'answer';
+      answer.textContent = payload.answer || '(пусто)';
+      bubble.appendChild(answer);
 
-    async function sendMessage(text) {
-      add('user', text);
-      $send.disabled = true;
-      const spinner = document.createElement('span');
-      spinner.className = 'spinner';
-      $send.appendChild(spinner);
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const conf = Math.round((payload.confidence ?? 0) * 100);
+      meta.textContent = `Тема: ${payload.topic} | Уверенность: ${conf}%`;
+      bubble.appendChild(meta);
 
-      try {
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
+      if (Array.isArray(payload.suggest) && payload.suggest.length) {
+        const suggestBox = document.createElement('div');
+        suggestBox.className = 'suggest';
+        payload.suggest.forEach(s => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = s;
+          btn.onclick = () => sendMessage(s);
+          suggestBox.appendChild(btn);
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
-        add('assistant', data?.reply || '(пусто)');
-      } catch (e) {
-        add('assistant', 'Ошибка: ' + (e?.message || e));
-      } finally {
-        $send.disabled = false;
-        spinner.remove();
-        $msg.focus();
+        bubble.appendChild(suggestBox);
       }
+    } else {
+      // пользователь — просто текст
+      const textEl = document.createElement('div');
+      textEl.className = 'answer';
+      textEl.textContent = String(payload);
+      bubble.appendChild(textEl);
     }
 
-    $form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = $msg.value.trim();
-      if (!text) return;
-      $msg.value = '';
-      sendMessage(text);
-    });
+    row.appendChild(tag);
+    row.appendChild(bubble);
+    $log.appendChild(row);
+    $log.scrollTop = $log.scrollHeight;
+  }
 
-    // отправка по Enter
-    $msg.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        $form.requestSubmit();
-      }
-    });
-  </script>
+  async function sendMessage(text) {
+    add('user', text);
+    $send.disabled = true;
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    $send.appendChild(spinner);
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
+      add('assistant', data);
+    } catch (e) {
+      add('assistant', {
+        answer: 'Ошибка: ' + (e?.message || e),
+        topic: 'general',
+        confidence: 0,
+        suggest: []
+      });
+    } finally {
+      $send.disabled = false;
+      spinner.remove();
+      $msg.focus();
+    }
+  }
+
+  $form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $msg.value.trim();
+    if (!text) return;
+    $msg.value = '';
+    sendMessage(text);
+  });
+
+  $msg.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      $form.requestSubmit();
+    }
+  });
+</script>
 </body>
 </html>
