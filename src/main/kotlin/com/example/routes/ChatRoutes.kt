@@ -6,8 +6,6 @@ import com.example.agent.ErrorResponse
 import com.example.agent.MessageContent
 import com.example.agent.OpenAiClient
 import com.example.agent.ResponseMessage
-import com.example.agent.ToolOutputPayload
-import com.example.agent.ToolRegistry
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -18,7 +16,6 @@ import org.slf4j.LoggerFactory
 
 fun Route.chatRoutes(openAiClient: OpenAiClient) {
     val logger = LoggerFactory.getLogger("ChatRoutes")
-    val tools = ToolRegistry
 
     post("/chat") {
         val request = call.receive<ChatRequest>()
@@ -35,8 +32,9 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             ResponseMessage(
                 role = "system",
                 content = listOf(
-                    MessageContent(text = "Ты агент. Если вызываешь инструмент, возвращай его результат без изменений.")
-
+                    MessageContent(
+                        text = "Ты дружелюбный помощник. Отвечай пользователю на русском языке, если это уместно."
+                    )
                 )
             ),
             ResponseMessage(
@@ -45,46 +43,12 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             )
         )
 
-        val firstResponse = openAiClient.firstResponse(messages, tools.definitions())
-        logger.info(
-            "OpenAI response {} with {} tool call(s)",
-            firstResponse.responseId,
-            firstResponse.toolCalls.size
-        )
-
-        if (firstResponse.toolCalls.isEmpty()) {
-            val reply = firstResponse.text.orEmpty()
-            logger.info("Final reply without tools: {}", reply)
-            call.respond(ChatResponse(reply = reply))
-            return@post
+        val reply = openAiClient.generateReply(messages).ifBlank {
+            logger.warn("Received blank reply from model")
+            "Извини, я не смог сформировать ответ."
         }
 
-        val toolOutputs = firstResponse.toolCalls.map { toolCall ->
-            val tool = tools.find(toolCall.name)
-            if (tool == null) {
-                logger.error("Tool {} not found", toolCall.name)
-                return@map ToolOutputPayload(
-                    toolCallId = toolCall.id,
-                    output = "Tool \"${toolCall.name}\" error: Tool not found."
-                )
-            }
-            val output = runCatching {
-                logger.info("Executing tool {} with arguments {}", tool.name, toolCall.argumentsJson)
-                tool.execute(toolCall.argumentsJson)
-            }.onFailure { throwable ->
-                logger.error("Tool {} failed", tool.name, throwable)
-            }.getOrElse { throwable ->
-                "Tool \"${tool.name}\" error: ${throwable.message ?: "unknown error"}"
-            }
-            ToolOutputPayload(toolCallId = toolCall.id, output = output)
-        }
-
-        logger.info("Sending tool outputs back to OpenAI: {}", toolOutputs.map { it.toolCallId })
-
-        val finalResponse = openAiClient.finalResponse(firstResponse.responseId, toolOutputs)
-        val reply = finalResponse.text.orEmpty()
-        logger.info("Final reply after tools: {}", reply)
-
+        logger.info("Final reply: {}", reply)
         call.respond(ChatResponse(reply = reply))
     }
 }
