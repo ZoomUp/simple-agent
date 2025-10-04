@@ -4,16 +4,7 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 
 private const val RESPONSES_URL = "https://api.openai.com/v1/responses"
@@ -29,16 +20,17 @@ class OpenAiClient(
     suspend fun generateReply(messages: List<ResponseMessage>): String {
         val requestBody = FirstResponseRequest(
             model = model,
-            input = messages
+            input = messages,
+            temperature = 0.2,
+            top_p = 0.9,
+            max_output_tokens = 800
         )
 
         logger.info("Sending chat request to OpenAI with {} messages", messages.size)
 
         val responseText = httpClient.post(RESPONSES_URL) {
             contentType(ContentType.Application.Json)
-            headers {
-                append(HttpHeaders.Authorization, "Bearer $apiKey")
-            }
+            headers { append(HttpHeaders.Authorization, "Bearer $apiKey") }
             setBody(requestBody)
         }.bodyAsText()
 
@@ -52,20 +44,13 @@ class OpenAiClient(
         val output = root["output"]?.jsonArray ?: JsonArray(emptyList())
 
         val texts = mutableListOf<String>()
-        for (element in output) {
-            collectTextFromOutput(element, texts)
-        }
-
+        for (element in output) collectTextFromOutput(element, texts)
         if (texts.isEmpty()) {
             root["output_text"]?.jsonPrimitive?.contentOrNull()?.let { texts.add(it) }
         }
 
         val messageText = texts.joinToString("\n").trim()
-        logger.info(
-            "Parsed response {} with text length {}",
-            responseId,
-            messageText.length
-        )
+        logger.info("Parsed response {} with text length {}", responseId, messageText.length)
         return messageText
     }
 
@@ -102,13 +87,6 @@ class OpenAiClient(
     }
 }
 
-private fun JsonPrimitive?.contentOrNull(): String? = this?.let { primitive ->
-    if (
-        primitive.isString ||
-        primitive.booleanOrNull != null ||
-        primitive.longOrNull != null ||
-        primitive.doubleOrNull != null
-    ) {
-        primitive.content
-    } else null
+private fun JsonPrimitive?.contentOrNull(): String? = this?.let { p ->
+    if (p.isString || p.booleanOrNull != null || p.longOrNull != null || p.doubleOrNull != null) p.content else null
 }

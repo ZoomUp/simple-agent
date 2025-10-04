@@ -17,11 +17,17 @@ data class ResponseMessage(
 @Serializable
 data class FirstResponseRequest(
     val model: String,
-    val input: List<ResponseMessage>
+    val input: List<ResponseMessage>,
+    val temperature: Double? = null,
+    val top_p: Double? = null,
+    val max_output_tokens: Int? = null
 )
 
 @Serializable
-data class ChatRequest(val message: String)
+data class ChatRequest(
+    val message: String,
+    val sessionId: String? = null
+)
 
 @Serializable
 data class ChatResponse(val reply: String)
