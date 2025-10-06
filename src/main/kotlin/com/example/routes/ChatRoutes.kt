@@ -20,14 +20,13 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
     post("/chat") {
         val request = call.receive<ChatRequest>()
         val message = request.message.trim()
-        val temp = request.temperature
         if (message.isEmpty()) {
             logger.warn("Received empty message")
             call.respond(HttpStatusCode.BadRequest, ErrorResponse("Message must not be blank."))
             return@post
         }
 
-        logger.info("Incoming message: '{}' (temp={})", message, temp)
+        logger.info("Incoming message: {}", message)
 
         val messages = listOf(
             ResponseMessage(
@@ -44,7 +43,7 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             )
         )
 
-        val reply = openAiClient.generateReply(messages, temperature = temp).ifBlank {
+        val reply = openAiClient.generateReply(messages).ifBlank {
             logger.warn("Received blank reply from model")
             "Извини, я не смог сформировать ответ."
         }
