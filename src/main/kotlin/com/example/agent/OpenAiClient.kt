@@ -26,19 +26,24 @@ class OpenAiClient(
 ) {
     private val logger = LoggerFactory.getLogger(OpenAiClient::class.java)
 
-    suspend fun generateReply(messages: List<ResponseMessage>): String {
+    suspend fun generateReply(
+        messages: List<ResponseMessage>,
+        temperature: Double? = null
+    ): String {
         val requestBody = FirstResponseRequest(
             model = model,
-            input = messages
+            input = messages,
+            temperature = temperature,
         )
 
-        logger.info("Sending chat request to OpenAI with {} messages", messages.size)
+        logger.info(
+            "Sending chat request to OpenAI with {} messages (temp={})",
+            messages.size, temperature
+        )
 
         val responseText = httpClient.post(RESPONSES_URL) {
             contentType(ContentType.Application.Json)
-            headers {
-                append(HttpHeaders.Authorization, "Bearer $apiKey")
-            }
+            headers { append(HttpHeaders.Authorization, "Bearer $apiKey") }
             setBody(requestBody)
         }.bodyAsText()
 
@@ -52,20 +57,13 @@ class OpenAiClient(
         val output = root["output"]?.jsonArray ?: JsonArray(emptyList())
 
         val texts = mutableListOf<String>()
-        for (element in output) {
-            collectTextFromOutput(element, texts)
-        }
-
+        for (element in output) collectTextFromOutput(element, texts)
         if (texts.isEmpty()) {
             root["output_text"]?.jsonPrimitive?.contentOrNull()?.let { texts.add(it) }
         }
 
         val messageText = texts.joinToString("\n").trim()
-        logger.info(
-            "Parsed response {} with text length {}",
-            responseId,
-            messageText.length
-        )
+        logger.info("Parsed response {} with text length {}", responseId, messageText.length)
         return messageText
     }
 
@@ -103,12 +101,7 @@ class OpenAiClient(
 }
 
 private fun JsonPrimitive?.contentOrNull(): String? = this?.let { primitive ->
-    if (
-        primitive.isString ||
-        primitive.booleanOrNull != null ||
-        primitive.longOrNull != null ||
-        primitive.doubleOrNull != null
-    ) {
+    if (primitive.isString || primitive.booleanOrNull != null || primitive.longOrNull != null || primitive.doubleOrNull != null)
         primitive.content
-    } else null
+    else null
 }

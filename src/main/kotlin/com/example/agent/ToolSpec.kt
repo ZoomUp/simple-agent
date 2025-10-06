@@ -17,11 +17,15 @@ data class ResponseMessage(
 @Serializable
 data class FirstResponseRequest(
     val model: String,
-    val input: List<ResponseMessage>
+    val input: List<ResponseMessage>,
+    val temperature: Double? = null,   // <-- добавили
 )
 
 @Serializable
-data class ChatRequest(val message: String)
+data class ChatRequest(
+    val message: String,
+    val temperature: Double? = null    // <-- добавили
+)
 
 @Serializable
 data class ChatResponse(val reply: String)

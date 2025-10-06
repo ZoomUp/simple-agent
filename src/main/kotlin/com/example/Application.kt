@@ -30,7 +30,7 @@ fun Application.module() {
     val logger = LoggerFactory.getLogger("AgentModule")
     val apiKey = System.getenv("OPENAI_API_KEY")
         ?: throw IllegalStateException("OPENAI_API_KEY environment variable is not set")
-    val model = System.getenv("OPENAI_MODEL") ?: "gpt-4.1-nano"
+    val model = System.getenv("OPENAI_MODEL") ?: "gpt-4.1"
 
     val json = Json {
         ignoreUnknownKeys = true
