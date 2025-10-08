@@ -1,7 +1,7 @@
 package com.example
 
-import com.example.agent.OpenAiClient
-import com.example.routes.chatRoutes
+import com.example.agent.HfClient
+import com.example.routes.multiChatRoutes
 import io.ktor.client.*
 import io.ktor.client.engine.apache.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -28,9 +28,8 @@ fun main() {
 
 fun Application.module() {
     val logger = LoggerFactory.getLogger("AgentModule")
-    val apiKey = System.getenv("OPENAI_API_KEY")
-        ?: throw IllegalStateException("OPENAI_API_KEY environment variable is not set")
-    val model = System.getenv("OPENAI_MODEL") ?: "gpt-4.1-nano"
+    val hfToken = System.getenv("HF_TOKEN")
+        ?: throw IllegalStateException("HF_TOKEN environment variable is not set")
 
     val json = Json {
         ignoreUnknownKeys = true
@@ -40,20 +39,17 @@ fun Application.module() {
     val httpClient = HttpClient(Apache) {
         install(ContentNegotiation) { json(json) }
     }
-
     environment.monitor.subscribe(ApplicationStopped) { httpClient.close() }
 
-    val openAiClient = OpenAiClient(httpClient, apiKey, model, json)
+    val hfClient = HfClient(httpClient, hfToken, json)
 
     install(ServerContentNegotiation) { json(json) }
     install(CallLogging)
 
     routing {
-        // раздаём все файлы из resources/static по корню
         staticResources("/", "static")
-        // твой API
-        chatRoutes(openAiClient)
+        multiChatRoutes(hfClient)
     }
 
-    logger.info("Agent module initialized with model {}", model)
+    logger.info("HF Router client initialized")
 }
