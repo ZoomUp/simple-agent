@@ -214,7 +214,7 @@ class OpenAiClient(
         )
         val result = systemParts + newUser
 
-        // Если всё ещё длинно — применим дополнительный truncate
+        // Если всё ещё длинно - применим дополнительный truncate
         val promptTok = estimateTokensForMessages(result)
         return if (promptTok + answerReserve > contextLimit) {
             compressByTruncate(result, promptTok, answerReserve).copy(third = true)
