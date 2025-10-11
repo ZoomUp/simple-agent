@@ -2,106 +2,187 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>🔥 День 1 — Первый агент</title>
+  <title>🔥 День 8 — Работа с токенами (демо-сценарии)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root { --bd:#e5e7eb; --fg:#111827; --mut:#6b7280; --bg:#ffffff; --acc:#0b6; }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    .wrap { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    .wrap { max-width: 960px; margin: 30px auto; padding: 0 16px; }
     h1 { margin: 0 0 8px; font-size: 22px; }
-    .hint { color: var(--mut); margin: 0 0 16px; }
-    #log { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; min-height: 260px; max-height: 60vh; overflow-y: auto; background: #fff; }
-    .msg { display: flex; gap: 8px; margin: 8px 0; align-items: flex-start; }
-    .msg .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--bd); color: var(--mut); }
-    .msg .bubble { padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; white-space: pre-wrap; }
+    .hint { color: var(--mut); margin: 0 0 12px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; margin: 10px 0; }
+    .btn { padding: 10px 12px; border: 0; background: var(--acc); color: #fff; border-radius: 10px; cursor: pointer; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .ghost { background: #f3f4f6; color: var(--fg); border: 1px solid var(--bd); }
+    .ghost:hover { background: var(--acc); color:#fff; border-color: var(--acc); }
+    input[type=number], select { padding: 8px; border: 1px solid var(--bd); border-radius: 8px; }
+    #log { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; min-height: 280px; max-height: 65vh; overflow-y: auto; background: #fff; }
+    .msg { display: grid; grid-template-columns: auto 1fr; gap: 8px; margin: 10px 0; align-items: flex-start; }
+    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--bd); color: var(--mut); white-space: nowrap; }
+    .bubble { padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; white-space: pre-wrap; background: #fff; }
     .me .bubble { border-color: #d1fae5; background: #ecfdf5; }
-    .bot .bubble { border-color: #e5e7eb; background: #f9fafb; }
-    form { display: flex; gap: 8px; margin-top: 12px; }
-    input[type=text] { flex: 1; padding: 12px; border: 1px solid var(--bd); border-radius: 10px; }
-    button { padding: 12px 16px; border: 0; background: var(--acc); color: #fff; border-radius: 10px; cursor: pointer; }
-    button:disabled { opacity: .6; cursor: not-allowed; }
+    .bot .bubble { border-color: #e5e7eb; background: #fff; }
+    .meta { color: var(--mut); font-size: 12px; margin-left: 38px; }
     .spinner { width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: var(--acc); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; margin-left: 8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>🔥 День 1 — Первый агент</h1>
-    <p class="hint">Спроси, например: <em>Сколько времени?</em> — агент вызовет инструмент <code>get_time</code>.</p>
+<div class="wrap">
+  <h1>🔥 День 8 — Работа с токенами</h1>
+  <p class="hint">
+    Кнопки ниже запускают готовые сценарии: <b>короткий</b>, <b>длинный</b> и <b>слишком длинный</b> запросы.
+    Сравни метрики: prompt/completion/total токены, время, и как работает <b>truncate/summary</b>.
+  </p>
 
-    <div id="log" aria-live="polite"></div>
-
-    <form id="form" autocomplete="off">
-      <input id="msg" type="text" placeholder="Введите сообщение и нажмите Enter…" />
-      <button id="send" type="submit">Отправить</button>
-    </form>
+  <div class="row">
+    <label>Стратегия по умолчанию:
+      <select id="strategy">
+        <option value="">без сжатия</option>
+        <option value="truncate">truncate</option>
+        <option value="summary">summary</option>
+      </select>
+    </label>
+    <label>max_output_tokens:
+      <input id="maxOut" type="number" min="50" max="2000" step="50" value="300">
+    </label>
+    <button class="btn ghost" id="runShort">Короткий</button>
+    <button class="btn ghost" id="runLong">Длинный</button>
+    <button class="btn ghost" id="runTooLongTrunc">Слишком длинный (truncate)</button>
+    <button class="btn ghost" id="runTooLongSumm">Слишком длинный (summary)</button>
+    <button class="btn" id="runAll">Запустить все</button>
   </div>
 
-  <script>
-    const $log  = document.getElementById('log');
-    const $form = document.getElementById('form');
-    const $msg  = document.getElementById('msg');
-    const $send = document.getElementById('send');
+  <div id="log" aria-live="polite"></div>
 
-    function add(role, text) {
-      const row = document.createElement('div');
-      row.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
+  <div class="row">
+    <div class="grid" style="width:100%">
+      <input id="customMsg" type="text" placeholder="Свой запрос… (введи — и кнопка ниже отправит с выбранной стратегией)" style="padding:12px; border:1px solid var(--bd); border-radius:10px;">
+      <button class="btn" id="sendCustom">Отправить свой запрос</button>
+    </div>
+  </div>
+</div>
 
-      const tag = document.createElement('div');
-      tag.className = 'tag';
-      tag.textContent = role === 'user' ? 'Вы' : 'Агент';
+<script>
+  const $log = document.getElementById('log');
+  const $strategy = document.getElementById('strategy');
+  const $maxOut = document.getElementById('maxOut');
+  const $runShort = document.getElementById('runShort');
+  const $runLong = document.getElementById('runLong');
+  const $runTooLongTrunc = document.getElementById('runTooLongTrunc');
+  const $runTooLongSumm = document.getElementById('runTooLongSumm');
+  const $runAll = document.getElementById('runAll');
+  const $sendCustom = document.getElementById('sendCustom');
+  const $customMsg = document.getElementById('customMsg');
 
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = text;
-
-      row.appendChild(tag);
-      row.appendChild(bubble);
-      $log.appendChild(row);
-      $log.scrollTop = $log.scrollHeight;
+  function add(role, text, meta = "") {
+    const row = document.createElement('div');
+    row.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = role === 'user' ? 'Вы' : 'Агент';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    row.appendChild(tag);
+    row.appendChild(bubble);
+    $log.appendChild(row);
+    if (meta) {
+      const m = document.createElement('div');
+      m.className = 'meta';
+      m.textContent = meta;
+      $log.appendChild(m);
     }
+    $log.scrollTop = $log.scrollHeight;
+  }
 
-    async function sendMessage(text) {
-      add('user', text);
-      $send.disabled = true;
-      const spinner = document.createElement('span');
-      spinner.className = 'spinner';
-      $send.appendChild(spinner);
+  async function callChat({ message, strategy, maxOut }) {
+    const info = `(strategy=${strategy || 'none'}, maxOut=${maxOut})`;
+    add('user', message.slice(0, 4000) + (message.length > 4000 ? ' …' : ''), info);
 
-      try {
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
-        add('assistant', data?.reply || '(пусто)');
-      } catch (e) {
-        add('assistant', 'Ошибка: ' + (e?.message || e));
-      } finally {
-        $send.disabled = false;
-        spinner.remove();
-        $msg.focus();
-      }
+    const btns = [$runShort, $runLong, $runTooLongTrunc, $runTooLongSumm, $runAll, $sendCustom];
+    btns.forEach(b => b.disabled = true);
+    const spin = document.createElement('span');
+    spin.className = 'spinner';
+    $runAll.appendChild(spin);
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          strategy: strategy || null,
+          maxOutputTokens: parseInt(maxOut, 10)
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
+
+      const meta = `prompt:${data.promptTokens} | completion:${data.completionTokens} | total:${data.totalTokens} | ${data.tokensEstimated ? '≈estimated' : 'exact'} | time:${data.latencyMs}ms | truncated:${data.truncated} | summarized:${data.summarized}`;
+      add('assistant', data?.reply || '(пусто)', meta);
+    } catch (e) {
+      add('assistant', 'Ошибка: ' + (e?.message || e));
+    } finally {
+      btns.forEach(b => b.disabled = false);
+      spin.remove();
     }
+  }
 
-    $form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = $msg.value.trim();
-      if (!text) return;
-      $msg.value = '';
-      sendMessage(text);
-    });
+  // --- Генераторы текста ---
+  function makeShort() {
+    return 'Суммируй этот текст в 3 пункта: "Оплата по SMS-коду: пользователь вводит номер, получает код, подтверждает вход."';
+  }
 
-    // отправка по Enter
-    $msg.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        $form.requestSubmit();
-      }
-    });
-  </script>
+  function makeParagraph() {
+    return 'Мы планируем расширить оплату по SMS-коду. Пользователь вводит номер, ' +
+           'получает одноразовый код, вводит его и подтверждает вход. Важно обеспечить задержку < 3 c, ' +
+           'устойчивость 99.95%, защиту от брутфорса, локализацию RU/EN. Оффлайн-режим не требуется.';
+  }
+
+  function makeLong(times = 8) {
+    const p = makeParagraph();
+    return Array.from({length: times}, () => p).join('\n\n');
+  }
+
+  function makeTooLong(times = 60) { // намеренно очень длинный
+    const p = makeParagraph();
+    return Array.from({length: times}, () => p).join('\n\n');
+  }
+
+  // --- Кнопки сценариев ---
+  $runShort.addEventListener('click', () => {
+    callChat({ message: makeShort(), strategy: $strategy.value, maxOut: $maxOut.value });
+  });
+
+  $runLong.addEventListener('click', () => {
+    // длинный без стратегии (пусть покажет рост токенов/времени)
+    callChat({ message: makeLong(10), strategy: '', maxOut: $maxOut.value });
+  });
+
+  $runTooLongTrunc.addEventListener('click', () => {
+    callChat({ message: makeTooLong(60), strategy: 'truncate', maxOut: $maxOut.value });
+  });
+
+  $runTooLongSumm.addEventListener('click', () => {
+    callChat({ message: makeTooLong(60), strategy: 'summary', maxOut: $maxOut.value });
+  });
+
+  $runAll.addEventListener('click', async () => {
+    await callChat({ message: makeShort(), strategy: $strategy.value, maxOut: $maxOut.value });
+    await callChat({ message: makeLong(10), strategy: '', maxOut: $maxOut.value });
+    await callChat({ message: makeTooLong(60), strategy: 'truncate', maxOut: $maxOut.value });
+    await callChat({ message: makeTooLong(60), strategy: 'summary',  maxOut: $maxOut.value });
+  });
+
+  $sendCustom.addEventListener('click', () => {
+    const text = $customMsg.value.trim();
+    if (!text) return;
+    callChat({ message: text, strategy: $strategy.value, maxOut: $maxOut.value });
+    $customMsg.value = '';
+  });
+</script>
 </body>
 </html>

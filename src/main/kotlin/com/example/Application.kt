@@ -39,6 +39,11 @@ fun Application.module() {
 
     val httpClient = HttpClient(Apache) {
         install(ContentNegotiation) { json(json) }
+        install(io.ktor.client.plugins.HttpTimeout) {
+            requestTimeoutMillis = 60_000
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis  = 60_000
+        }
     }
 
     environment.monitor.subscribe(ApplicationStopped) { httpClient.close() }

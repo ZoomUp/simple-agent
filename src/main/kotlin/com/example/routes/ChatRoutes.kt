@@ -1,11 +1,6 @@
 package com.example.routes
 
-import com.example.agent.ChatRequest
-import com.example.agent.ChatResponse
-import com.example.agent.ErrorResponse
-import com.example.agent.MessageContent
-import com.example.agent.OpenAiClient
-import com.example.agent.ResponseMessage
+import com.example.agent.*
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -20,21 +15,22 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
     post("/chat") {
         val request = call.receive<ChatRequest>()
         val message = request.message.trim()
+        val strategy = request.strategy?.lowercase()
+        val maxOut = request.maxOutputTokens
+
         if (message.isEmpty()) {
             logger.warn("Received empty message")
             call.respond(HttpStatusCode.BadRequest, ErrorResponse("Message must not be blank."))
             return@post
         }
 
-        logger.info("Incoming message: {}", message)
+        logger.info("Incoming message: '{}' (strategy={}, maxOut={})", message.take(60), strategy, maxOut)
 
         val messages = listOf(
             ResponseMessage(
                 role = "system",
                 content = listOf(
-                    MessageContent(
-                        text = "Ты дружелюбный помощник. Отвечай пользователю на русском языке, если это уместно."
-                    )
+                    MessageContent(text = "Ты дружелюбный помощник. Отвечай на русском, если это уместно.")
                 )
             ),
             ResponseMessage(
@@ -43,12 +39,8 @@ fun Route.chatRoutes(openAiClient: OpenAiClient) {
             )
         )
 
-        val reply = openAiClient.generateReply(messages).ifBlank {
-            logger.warn("Received blank reply from model")
-            "Извини, я не смог сформировать ответ."
-        }
-
-        logger.info("Final reply: {}", reply)
-        call.respond(ChatResponse(reply = reply))
+        val options = OpenAiClient.SendOptions(strategy = strategy, maxOutputTokens = maxOut)
+        val resp = openAiClient.generateReplyWithMetrics(messages, options)
+        call.respond(resp)
     }
 }
