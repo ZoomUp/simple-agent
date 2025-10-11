@@ -2,6 +2,7 @@ package com.example
 
 import com.example.agent.OpenAiClient
 import com.example.routes.chatRoutes
+import com.example.routes.pipelineRoutes
 import io.ktor.client.*
 import io.ktor.client.engine.apache.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -53,6 +54,7 @@ fun Application.module() {
         staticResources("/", "static")
         // твой API
         chatRoutes(openAiClient)
+        pipelineRoutes(openAiClient)
     }
 
     logger.info("Agent module initialized with model {}", model)
